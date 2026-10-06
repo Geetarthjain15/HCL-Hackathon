@@ -16,3 +16,6 @@ __pycache__/
 Thumbs.db
 .idea/
 .vscode/
+
+# Streamlit
+.streamlit/secrets.toml

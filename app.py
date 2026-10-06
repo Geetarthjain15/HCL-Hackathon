@@ -1,10 +1,14 @@
-"""Minimal RAG template: PDFs/CSV -> MiniLM embeddings -> FAISS -> LLM answer.
+"""Minimal RAG template: documents -> MiniLM embeddings -> FAISS -> LLM answer.
 
+Handles PDF (with OCR fallback for scans), CSV, Word, Excel and plain text.
 Primary LLM is Groq; if Groq errors or rate-limits, it falls back to Gemini.
+
 Run with:  streamlit run app.py
 """
 
+import io
 import os
+import shutil
 from dataclasses import dataclass
 
 import faiss
@@ -19,18 +23,29 @@ from sentence_transformers import SentenceTransformer
 
 load_dotenv()
 
-EMBED_MODEL = "all-MiniLM-L6-v2"
+EMBED_MODELS = {
+    "English (fast)": "all-MiniLM-L6-v2",
+    "Multilingual": "paraphrase-multilingual-MiniLM-L12-v2",
+}
 GROQ_MODEL = "openai/gpt-oss-120b"
 GEMINI_MODEL = "gemini-3.8-flash"
 CHUNK_CHARS = 1000
 CHUNK_OVERLAP = 150
 TOP_K = 4
+OCR_DPI = 200
+# Below this many extracted characters per page we assume the PDF is a scan.
+OCR_TRIGGER_CHARS = 40
 
 SYSTEM_PROMPT = (
     "Answer the question using only the provided context. "
     "If the context does not contain the answer, say so plainly. "
     "Cite the source filename for each claim."
 )
+
+TESSERACT_PATHS = [
+    r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+    r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+]
 
 
 @dataclass
@@ -39,12 +54,45 @@ class Chunk:
     source: str
 
 
-# --- loading -----------------------------------------------------------------
+# --- embedding ---------------------------------------------------------------
 
 
 @st.cache_resource(show_spinner="Loading embedding model...")
-def get_embedder() -> SentenceTransformer:
-    return SentenceTransformer(EMBED_MODEL)
+def get_embedder(model_name: str) -> SentenceTransformer:
+    return SentenceTransformer(model_name)
+
+
+# --- ocr ---------------------------------------------------------------------
+
+
+def find_tesseract() -> str | None:
+    """Return a usable tesseract executable path, or None if it is not installed."""
+    found = shutil.which("tesseract")
+    if found:
+        return found
+    return next((p for p in TESSERACT_PATHS if os.path.exists(p)), None)
+
+
+def ocr_pdf(data: bytes) -> str:
+    """Rasterise each page and read it with Tesseract. Used only for scans."""
+    exe = find_tesseract()
+    if not exe:
+        raise RuntimeError(
+            "This PDF has no text layer and Tesseract is not installed, so it "
+            "cannot be read. Install it from github.com/UB-Mannheim/tesseract"
+        )
+    import pypdfium2 as pdfium
+    import pytesseract
+
+    pytesseract.pytesseract.tesseract_cmd = exe
+    pages = []
+    for page in pdfium.PdfDocument(data):
+        image = page.render(scale=OCR_DPI / 72).to_pil()
+        pages.append(pytesseract.image_to_string(image))
+    return "\n".join(pages)
+
+
+# --- loading -----------------------------------------------------------------
 
 
 def split(text: str, source: str) -> list[Chunk]:
@@ -66,26 +114,56 @@ def split(text: str, source: str) -> list[Chunk]:
     return chunks
 
 
-def read_upload(file) -> list[Chunk]:
-    name = file.name
-    if name.lower().endswith(".pdf"):
-        pages = [p.extract_text() or "" for p in PdfReader(file).pages]
-        return split("\n".join(pages), name)
-    if name.lower().endswith(".csv"):
-        df = pd.read_csv(file)
-        # One chunk per row keeps tabular facts from bleeding into each other.
-        return [
-            Chunk("; ".join(f"{c}: {r[c]}" for c in df.columns), f"{name} row {i + 1}")
-            for i, r in df.iterrows()
-        ]
-    return split(file.read().decode("utf-8", errors="ignore"), name)
+def rows_to_chunks(df: pd.DataFrame, source: str) -> list[Chunk]:
+    """One chunk per row, so tabular facts do not bleed into each other."""
+    return [
+        Chunk(
+            "; ".join(f"{c}: {row[c]}" for c in df.columns if pd.notna(row[c])),
+            f"{source} row {i + 1}",
+        )
+        for i, row in df.iterrows()
+    ]
+
+
+def load_document(name: str, data: bytes) -> tuple[list[Chunk], str]:
+    """Return (chunks, how_it_was_read) for one uploaded file."""
+    lower = name.lower()
+
+    if lower.endswith(".pdf"):
+        reader = PdfReader(io.BytesIO(data))
+        text = "\n".join(p.extract_text() or "" for p in reader.pages)
+        if len(text.strip()) < OCR_TRIGGER_CHARS * len(reader.pages):
+            return split(ocr_pdf(data), name), "OCR (scanned)"
+        return split(text, name), "text layer"
+
+    if lower.endswith(".csv"):
+        return rows_to_chunks(pd.read_csv(io.BytesIO(data)), name), "CSV rows"
+
+    if lower.endswith((".xlsx", ".xlsm")):
+        sheets = pd.read_excel(io.BytesIO(data), sheet_name=None)
+        chunks = []
+        for sheet, df in sheets.items():
+            chunks += rows_to_chunks(df, f"{name}:{sheet}")
+        return chunks, f"Excel ({len(sheets)} sheet(s))"
+
+    if lower.endswith(".docx"):
+        import docx
+
+        doc = docx.Document(io.BytesIO(data))
+        parts = [p.text for p in doc.paragraphs if p.text.strip()]
+        for table in doc.tables:
+            for row in table.rows:
+                parts.append(" | ".join(c.text.strip() for c in row.cells))
+        return split("\n".join(parts), name), "Word"
+
+    return split(data.decode("utf-8", errors="ignore"), name), "plain text"
 
 
 # --- index -------------------------------------------------------------------
 
 
-def build_index(chunks: list[Chunk]):
-    vecs = get_embedder().encode(
+def build_index(chunks: list[Chunk], model_name: str):
+    vecs = get_embedder(model_name).encode(
         [c.text for c in chunks], normalize_embeddings=True, show_progress_bar=False
     )
     vecs = np.asarray(vecs, dtype="float32")
@@ -94,9 +172,10 @@ def build_index(chunks: list[Chunk]):
     return index
 
 
-def retrieve(index, chunks: list[Chunk], question: str, k: int = TOP_K) -> list[Chunk]:
+def retrieve(index, chunks: list[Chunk], question: str, model_name: str, k: int = TOP_K):
     q = np.asarray(
-        get_embedder().encode([question], normalize_embeddings=True), dtype="float32"
+        get_embedder(model_name).encode([question], normalize_embeddings=True),
+        dtype="float32",
     )
     _, ids = index.search(q, min(k, len(chunks)))
     return [chunks[i] for i in ids[0] if i >= 0]
@@ -163,36 +242,52 @@ def main() -> None:
     with st.sidebar:
         st.subheader("Documents")
         files = st.file_uploader(
-            "PDF, CSV or TXT", type=["pdf", "csv", "txt"], accept_multiple_files=True
+            "PDF, CSV, Word, Excel or text",
+            type=["pdf", "csv", "xlsx", "xlsm", "docx", "txt"],
+            accept_multiple_files=True,
         )
+        label = st.radio("Embedding model", list(EMBED_MODELS), horizontal=False)
+        model_name = EMBED_MODELS[label]
+
+        st.divider()
         st.caption(
-            f"Groq key: {'✅' if os.getenv('GROQ_API_KEY') else '❌'} · "
-            f"Gemini key: {'✅' if os.getenv('GEMINI_API_KEY') else '❌'}"
+            f"Groq: {'OK' if os.getenv('GROQ_API_KEY') else 'missing'} · "
+            f"Gemini: {'OK' if os.getenv('GEMINI_API_KEY') else 'missing'} · "
+            f"OCR: {'ready' if find_tesseract() else 'not installed'}"
         )
 
     if not files:
         st.info("Upload a document in the sidebar to begin. Samples are in `data/`.")
         return
 
-    signature = tuple(sorted(f.name for f in files))
+    signature = (tuple(sorted(f.name for f in files)), model_name)
     if st.session_state.get("signature") != signature:
         with st.spinner("Indexing..."):
-            chunks: list[Chunk] = []
+            chunks, notes = [], []
             for f in files:
-                chunks.extend(read_upload(f))
+                try:
+                    got, how = load_document(f.name, f.getvalue())
+                except Exception as exc:
+                    st.error(f"{f.name}: {exc}")
+                    continue
+                chunks += got
+                notes.append(f"{f.name} ({how}, {len(got)} chunks)")
             if not chunks:
-                st.error("No text could be extracted. Is the PDF a scan?")
+                st.error("No text could be extracted from these files.")
                 return
             st.session_state.chunks = chunks
-            st.session_state.index = build_index(chunks)
+            st.session_state.index = build_index(chunks, model_name)
             st.session_state.signature = signature
-        st.success(f"Indexed {len(chunks)} chunks from {len(files)} file(s).")
+            st.session_state.notes = notes
+        st.success("Indexed: " + "; ".join(notes))
 
-    question = st.text_input("Question", placeholder="What does the policy say about refunds?")
+    question = st.text_input(
+        "Question", placeholder="How long do I have to claim a damaged item?"
+    )
     if not question:
         return
 
-    hits = retrieve(st.session_state.index, st.session_state.chunks, question)
+    hits = retrieve(st.session_state.index, st.session_state.chunks, question, model_name)
     context = "\n\n".join(f"[{c.source}] {c.text}" for c in hits)
 
     with st.spinner("Thinking..."):
