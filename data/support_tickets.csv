@@ -1,0 +1,16 @@
+ticket_id,opened_on,customer,category,product,priority,status,resolution_days,csat,summary
+T-1001,2026-01-07,Meera Nair,Returns,Aurora Headphones,High,Resolved,3,5,Left earcup silent on arrival; replacement shipped
+T-1002,2026-01-09,Rohit Sharma,Billing,Annual Plan,Medium,Resolved,2,4,Charged twice after card retry; duplicate refunded
+T-1003,2026-01-11,Aisha Khan,Shipping,Nimbus Keyboard,Low,Resolved,6,3,Parcel marked delivered but not received; reshipped
+T-1004,2026-01-14,Daniel Oyelaran,Technical,Orion Search,High,Escalated,11,2,Indexing stalls on PDFs above 30 MB
+T-1005,2026-01-15,Priya Menon,Returns,Vertex Monitor,Medium,Resolved,4,5,Dead pixels within 10 days; exchange approved
+T-1006,2026-01-18,Tomas Novak,Billing,Annual Plan,Low,Closed,1,4,Invoice GST number incorrect; reissued
+T-1007,2026-01-21,Sana Iqbal,Technical,Orion Search,High,Open,,,"Citations point to wrong page on multi-column PDFs"
+T-1008,2026-01-22,Kevin Ruiz,Shipping,Aurora Headphones,Medium,Resolved,5,4,Courier delay during regional strike
+T-1009,2026-01-25,Lena Fischer,Returns,Nimbus Keyboard,Low,Rejected,2,1,Return requested on day 44; outside 30-day window
+T-1010,2026-01-27,Arjun Bhatia,Technical,Vertex Monitor,High,Resolved,8,4,Firmware update bricked display; rollback provided
+T-1011,2026-01-29,Grace Mwangi,Billing,Monthly Plan,Medium,Open,,,Proration unclear after mid-cycle upgrade
+T-1012,2026-02-02,Hiroshi Tanaka,Technical,Orion Search,Medium,Resolved,7,5,Scanned documents returned no text; OCR limitation explained
+T-1013,2026-02-04,Fatima Zahra,Returns,Aurora Headphones,High,Escalated,14,2,Damage claim filed on day 12; warranty path disputed
+T-1014,2026-02-06,Oliver Brandt,Shipping,Vertex Monitor,Low,Resolved,3,5,Address correction before dispatch
+T-1015,2026-02-09,Nisha Reddy,Billing,Annual Plan,High,Resolved,2,5,Refund not received after 10 days; bank trace completed
