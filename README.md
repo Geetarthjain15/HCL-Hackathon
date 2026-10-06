@@ -165,6 +165,13 @@ a system which cheerfully invents answers.
 - **The refusal gate is a threshold, not a judgement.** `MIN_SIMILARITY` is
   tuned on this sample corpus; re-check it against real data.
 
+## Documentation
+
+| Page | For |
+| --- | --- |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Explaining the design out loud — diagrams, decisions, what to say |
+| [`docs/RUNBOOK.md`](docs/RUNBOOK.md) | Hackathon day: timings, adaptation steps, what to do when it breaks |
+
 ## Layout
 
 ```
@@ -179,9 +186,11 @@ rag/
   evaluate.py    metrics
   cli.py         python -m rag ...
 app.py           Streamlit chat UI
+docs/            architecture walkthrough + day runbook
 eval/            question set
-tests/           24 tests, no API key needed
+tests/           25 tests, no API key needed
 notebooks/       Colab fallback
+storage/         built index (git-ignored, rebuild with `rag ingest`)
 ```
 
 ### If the laptop fails
