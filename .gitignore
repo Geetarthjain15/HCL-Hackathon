@@ -20,3 +20,7 @@ Thumbs.db
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Built index (rebuild with: python -m rag ingest)
+storage/
+.pytest_cache/

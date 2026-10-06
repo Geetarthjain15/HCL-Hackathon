@@ -1,0 +1,178 @@
+[
+  {
+    "question": "How many days do I have to claim a damaged item?",
+    "expect": [
+      "10"
+    ],
+    "sources": [
+      "refund_policy.pdf"
+    ],
+    "note": "paraphrase: the document says 'damaged or defective', not 'damaged item'"
+  },
+  {
+    "question": "What is the standard return window?",
+    "expect": [
+      "30"
+    ],
+    "sources": [
+      "refund_policy.pdf"
+    ]
+  },
+  {
+    "question": "How long do card refunds take to process?",
+    "expect": [
+      "7",
+      "10"
+    ],
+    "sources": [
+      "refund_policy.pdf"
+    ],
+    "note": "must not confuse card timing with UPI timing in the same paragraph"
+  },
+  {
+    "question": "Which items cannot be returned once opened?",
+    "expect": [
+      "cosmetic"
+    ],
+    "sources": [
+      "refund_policy.pdf"
+    ]
+  },
+  {
+    "question": "How much annual leave does an employee accrue each year?",
+    "expect": [
+      "18"
+    ],
+    "sources": [
+      "employee_handbook.pdf"
+    ]
+  },
+  {
+    "question": "How many leave days can be carried over to the next year?",
+    "expect": [
+      "10"
+    ],
+    "sources": [
+      "employee_handbook.pdf"
+    ],
+    "note": "same document contains 18, 12 and 26 day figures as distractors"
+  },
+  {
+    "question": "What is the notice period after confirmation?",
+    "expect": [
+      "60"
+    ],
+    "sources": [
+      "employee_handbook.pdf"
+    ],
+    "note": "30 days during probation is the distractor"
+  },
+  {
+    "question": "What expense amount requires prior manager approval?",
+    "expect": [
+      "5"
+    ],
+    "sources": [
+      "employee_handbook.pdf"
+    ]
+  },
+  {
+    "question": "What is the latency target for Project Orion?",
+    "expect": [
+      "5",
+      "95"
+    ],
+    "sources": [
+      "project_orion_spec.pdf"
+    ]
+  },
+  {
+    "question": "Below what retrieval confidence should the system refuse to answer?",
+    "expect": [
+      "0.35"
+    ],
+    "sources": [
+      "project_orion_spec.pdf"
+    ],
+    "note": "exact decimal; tests literal-number retrieval where BM25 helps"
+  },
+  {
+    "question": "Why was an approximate vector index rejected?",
+    "expect": [
+      "recall"
+    ],
+    "sources": [
+      "project_orion_spec.pdf"
+    ],
+    "note": "reasoning spread across ADR-01"
+  },
+  {
+    "question": "What is out of scope for version 1?",
+    "expect": [
+      "OCR|optical character recognition"
+    ],
+    "sources": [
+      "project_orion_spec.pdf"
+    ],
+    "note": "the spec writes it out in full; either spelling counts"
+  },
+  {
+    "question": "What is the total amount due on the invoice?",
+    "expect": [
+      "91"
+    ],
+    "sources": [
+      "scanned_invoice.pdf"
+    ],
+    "note": "OCR path: this PDF has no text layer at all"
+  },
+  {
+    "question": "What are the payment terms on the Blue Ridge invoice?",
+    "expect": [
+      "Net 30|30"
+    ],
+    "sources": [
+      "scanned_invoice.pdf"
+    ],
+    "note": "OCR path; the labelled field is 'Payment Terms: Net 30'"
+  },
+  {
+    "question": "Which ticket was rejected and why?",
+    "expect": [
+      "30"
+    ],
+    "sources": [
+      "support_tickets.csv row 9"
+    ],
+    "note": "row-level retrieval; T-1009 was outside the 30-day window"
+  },
+  {
+    "question": "What issue did Daniel Oyelaran report?",
+    "expect": [
+      "index"
+    ],
+    "sources": [
+      "support_tickets.csv row 4"
+    ],
+    "note": "a rare literal name - dense embeddings alone often miss this, BM25 catches it"
+  },
+  {
+    "question": "How many support tickets are about billing?",
+    "expect": [
+      "4"
+    ],
+    "sources": [
+      "support_tickets.csv"
+    ],
+    "note": "aggregation across rows: with top_k=5 the model cannot see all 15 rows, so refusing is the honest outcome, not a bug",
+    "known_limitation": true
+  },
+  {
+    "question": "What is the capital of France?",
+    "note": "negative case: not in any document, so the system must refuse"
+  },
+  {
+    "question": "What is our Q3 revenue forecast?",
+    "note": "negative case: plausible-sounding but absent, the classic hallucination trap"
+  }
+]
